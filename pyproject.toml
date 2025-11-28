@@ -1,0 +1,51 @@
+[project]
+name = "intelligent-darts"
+dynamic = ["version"]
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.119.0",
+    "pydantic-settings>=2.11.0",
+    "uvicorn>=0.37.0",
+    "databricks-sdk>=0.68.0",
+    "sqlmodel>=0.0.27",
+    "psycopg2-binary>=2.9.11",
+    "psycopg>=3.2.11",
+]
+
+[dependency-groups]
+dev = [
+    "apx",
+]
+
+[tool.apx.metadata]
+app-name = "intelligent-darts"
+app-slug = "intelligent_darts"
+app-module = "intelligent_darts.backend.app:app"
+metadata-path = "src/intelligent_darts/_metadata.py"
+
+
+[tool.uv.sources]
+apx = { git = "https://github.com/databricks-solutions/apx.git" }
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+format-jinja = "{{version}}"
+
+[tool.hatch.build.hooks.version]
+path = "src/intelligent_darts/_version.py"
+template = '''
+version = "{version}"
+'''
+
+[tool.hatch.build]
+artifacts = ["src/intelligent_darts/__dist__"]
+exclude = ["src/intelligent_darts/ui"]
