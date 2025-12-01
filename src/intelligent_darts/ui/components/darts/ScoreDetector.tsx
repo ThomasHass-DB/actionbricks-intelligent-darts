@@ -75,10 +75,13 @@ export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
       });
 
       // The API now returns an array of scores directly
-      const scores: DartScore[] = result.data.scores.map((score, index) => ({
-        dart_number: index + 1,
-        score: score
-      }));
+      // Limit to max 3 darts for visualization
+      const scores: DartScore[] = result.data.scores
+        .slice(0, 3)
+        .map((score, index) => ({
+          dart_number: index + 1,
+          score: score
+        }));
 
       setDartScores(scores);
       setConfidence(result.data.confidence);

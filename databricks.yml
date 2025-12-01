@@ -28,6 +28,10 @@ resources:
           serving_endpoint:
             name: databricks-llama-4-maverick
             permission: CAN_QUERY
+        - name: gemini-pro
+          serving_endpoint:
+            name: databricks-gemini-3-pro
+            permission: CAN_QUERY
 
 
 

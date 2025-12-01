@@ -55,6 +55,7 @@ function VideoStreamContent() {
                     <SelectItem value="databricks-claude-sonnet-4-5">Claude Sonnet 4.5</SelectItem>
                     <SelectItem value="databricks-gpt-5-1">GPT-5.1</SelectItem>
                     <SelectItem value="databricks-llama-4-maverick">Llama 4 Maverick</SelectItem>
+                    <SelectItem value="databricks-gemini-3-pro">Gemini 3 Pro</SelectItem>
                   </SelectContent>
                 </Select>
               )}
