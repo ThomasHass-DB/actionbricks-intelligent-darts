@@ -47,5 +47,5 @@ version = "{version}"
 '''
 
 [tool.hatch.build]
-artifacts = ["src/intelligent_darts/__dist__"]
+artifacts = ["src/intelligent_darts/__dist__", "src/intelligent_darts/_metadata.py"]
 exclude = ["src/intelligent_darts/ui"]

@@ -11,8 +11,9 @@ from .logger import logger
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting app with configuration:\n{conf.model_dump_json(indent=2)}")
-    rt.validate_db()
-    rt.initialize_models()
+    # Skip database validation for now - we're just building a video visualization app
+    # rt.validate_db()
+    # rt.initialize_models()
     yield
 
 

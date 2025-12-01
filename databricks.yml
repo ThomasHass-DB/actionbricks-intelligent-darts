@@ -15,19 +15,10 @@ resources:
       name: "intelligent-darts"
       description: "intelligent-darts created with apx"
       source_code_path: ./.build
-      config:
-        command: ["uvicorn", "intelligent_darts.backend.app:app", "--workers", "2"]
       resources:
-        - name: "db"
-          database:
-            database_name: "databricks_postgres"
-            instance_name: "intelligent-darts"
-            permission: "CAN_CONNECT_AND_CREATE"
-
-  database_instances:
-    intelligent-darts-db:
-      name: "intelligent-darts"
-      capacity: "CU_1"
+        - name: databricks-claude-sonnet-4-5
+          description: Claude Sonnet 4.5 model serving endpoint for dart score detection
+          permission: CAN_QUERY
 
 
 
