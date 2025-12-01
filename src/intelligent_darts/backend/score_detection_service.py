@@ -11,14 +11,12 @@ class ScoreDetectionService:
     
     MODEL_ENDPOINT = "databricks-claude-sonnet-4-5"
     
-    SYSTEM_PROMPT = """You are a darts scoring agent. Analyze two timestamped dartboard images and return only the score of the newly thrown dart.
+    SYSTEM_PROMPT = """You are a darts scoring agent. Analyze the dartboard image and identify ALL darts currently on the board.
 
 PROCESS:
-1. The image with the earlier timestamp shows the BEFORE state
-2. The image with the later timestamp shows the AFTER state
-3. Identify which dart is NEW (appears in AFTER but not in BEFORE)
-4. Determine the exact position of the NEW dart on the board
-5. Calculate the score
+1. Identify all darts visible on the dartboard
+2. For each dart, determine its exact position on the board
+3. Calculate the score for each dart
 
 SCORING RULES:
 - Inner bullseye (red center): 50 points
@@ -28,10 +26,23 @@ SCORING RULES:
 - Single segments: Face value (1-20)
 - Outside scoring area: 0 points
 
-OUTPUT:
-Respond with only the integer score. Nothing else.
+OUTPUT FORMAT:
+If multiple darts are present, list each one:
+Dart 1: [score]
+Dart 2: [score]
+Dart 3: [score]
 
-Example outputs: 20, 60, 50, 17, 0"""
+If only one dart is present:
+Dart 1: [score]
+
+If no darts are present:
+Dart 1: 0
+
+Example outputs:
+- "Dart 1: 20"
+- "Dart 1: 60, Dart 2: 50"
+- "Dart 1: 20, Dart 2: 60, Dart 3: 50"
+"""
 
     def __init__(self, workspace_client: WorkspaceClient):
         """Initialize the service with a Databricks workspace client"""
