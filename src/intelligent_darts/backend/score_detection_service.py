@@ -40,11 +40,9 @@ Example outputs: 20, 60, 50, 17, 0"""
     def _create_image_content(self, image_base64: str, timestamp: float, label: str) -> dict:
         """Create image content for the Claude API"""
         return {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": image_base64
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/jpeg;base64,{image_base64}"
             }
         }
     
