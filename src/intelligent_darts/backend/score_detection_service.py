@@ -1,5 +1,6 @@
 """Service for detecting dart scores using Claude Sonnet 4.5 model"""
 import base64
+import os
 from typing import Tuple, List
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
@@ -84,6 +85,28 @@ ONLY return the comma-separated numbers. Nothing else.
         try:
             logger.info(f"Calling model endpoint: {model_endpoint}")
             
+            # Log image details for debugging
+            image_size_kb = len(after_image_base64) * 3 / 4 / 1024  # Approximate size in KB
+            logger.info(f"Image size: ~{image_size_kb:.2f} KB (base64 length: {len(after_image_base64)})")
+            logger.info(f"Timestamp: {after_timestamp:.2f}s")
+            
+            # Optionally save the image for debugging (if DEBUG_SAVE_IMAGES env var is set)
+            if os.getenv("DEBUG_SAVE_IMAGES", "").lower() == "true":
+                try:
+                    import tempfile
+                    from pathlib import Path
+                    debug_dir = Path(tempfile.gettempdir()) / "intelligent_darts_debug"
+                    debug_dir.mkdir(exist_ok=True)
+                    image_path = debug_dir / f"frame_{after_timestamp:.2f}s.jpg"
+                    
+                    # Decode and save the image
+                    image_data = base64.b64decode(after_image_base64)
+                    with open(image_path, "wb") as f:
+                        f.write(image_data)
+                    logger.info(f"DEBUG: Saved image to {image_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to save debug image: {e}")
+            
             # Use the "after" image as the current frame to analyze
             # (Frontend sends the same image for both, so we just use one)
             user_message_content = [
@@ -104,6 +127,16 @@ ONLY return the comma-separated numbers. Nothing else.
                     content=user_message_content
                 )
             ]
+            
+            # Log the prompt being sent (without the full image data)
+            logger.info("=" * 80)
+            logger.info("SYSTEM PROMPT:")
+            logger.info(self.SYSTEM_PROMPT)
+            logger.info("=" * 80)
+            logger.info("USER MESSAGE:")
+            logger.info("- Text: 'Analyze this dartboard image and return the score for each dart visible on the board:'")
+            logger.info(f"- Image: [base64 image data, ~{image_size_kb:.2f} KB]")
+            logger.info("=" * 80)
             
             # Query the model serving endpoint
             response = self.ws.serving_endpoints.query(

@@ -25,6 +25,7 @@ interface ScoreHistory {
 export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
   const [dartScores, setDartScores] = useState<DartScore[]>([]);
   const [confidence, setConfidence] = useState<number | null>(null);
+  const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const detectScoreMutation = useDetectScore();
@@ -61,6 +62,10 @@ export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
       console.error('Could not capture current frame');
       return;
     }
+
+    // Store the captured image as a data URL for display
+    const imageDataUrl = `data:image/jpeg;base64,${currentFrame.base64}`;
+    setCapturedImageUrl(imageDataUrl);
 
     try {
       // Send the current frame for analysis
@@ -118,6 +123,20 @@ export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
             <Sparkles className="h-4 w-4 mr-2" />
             {detectScoreMutation.isPending ? 'Detecting Scores...' : 'Detect'}
           </Button>
+
+          {/* Captured Image Preview */}
+          {capturedImageUrl && (
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground font-semibold">Image sent to AI:</div>
+              <div className="border rounded-lg overflow-hidden">
+                <img 
+                  src={capturedImageUrl} 
+                  alt="Captured frame sent to AI" 
+                  className="w-full h-auto"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Detected Scores */}
           {dartScores.length > 0 && (
