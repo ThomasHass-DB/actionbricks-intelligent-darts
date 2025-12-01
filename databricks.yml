@@ -16,9 +16,17 @@ resources:
       description: "intelligent-darts created with apx"
       source_code_path: ./.build
       resources:
-        - name: genai
+        - name: claude-sonnet
           serving_endpoint:
             name: databricks-claude-sonnet-4-5
+            permission: CAN_QUERY
+        - name: gpt-5
+          serving_endpoint:
+            name: databricks-gpt-5-1
+            permission: CAN_QUERY
+        - name: llama-maverick
+          serving_endpoint:
+            name: databricks-llama-4-maverick
             permission: CAN_QUERY
 
 

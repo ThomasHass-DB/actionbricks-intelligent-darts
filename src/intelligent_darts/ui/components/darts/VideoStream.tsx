@@ -1,16 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Suspense, useState, useRef } from "react";
-import { useGetVideoStreamSuspense, useGetGameStatusSuspense } from "@/lib/api";
+import { useGetVideoStreamSuspense } from "@/lib/api";
 import { selector } from "@/lib/selector";
-import { Video, Activity, Sparkles, Camera } from "lucide-react";
+import { Video, Sparkles, Camera } from "lucide-react";
 import { ScoreDetector } from "./ScoreDetector";
 
 function VideoStreamContent() {
   const { data: stream } = useGetVideoStreamSuspense(selector());
-  const { data: gameStatus } = useGetGameStatusSuspense(selector());
   const [detectionMethod, setDetectionMethod] = useState<"generative-ai" | "computer-vision">("generative-ai");
+  const [selectedModel, setSelectedModel] = useState<string>("databricks-claude-sonnet-4-5");
   const videoRef = useRef<HTMLVideoElement>(null);
 
   return (
@@ -22,34 +23,48 @@ function VideoStreamContent() {
           <Card className="overflow-hidden h-full">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Video className="h-5 w-5" />
-                  Live Darts Stream
-                </CardTitle>
-                <div className="flex items-center gap-3">
-                  {/* Detection Method Choice Chips */}
-                  <ToggleGroup 
-                    type="single" 
-                    value={detectionMethod} 
-                    onValueChange={(value) => value && setDetectionMethod(value as "generative-ai" | "computer-vision")}
-                    size="sm"
-                  >
-                    <ToggleGroupItem value="generative-ai" aria-label="Generative AI" className="gap-1.5 text-xs">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <span>GenAI</span>
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="computer-vision" aria-label="Traditional Computer Vision" disabled className="gap-1.5 text-xs opacity-50">
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>CV</span>
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                  
-                  {/* Live Indicator */}
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                    <span className="text-sm text-muted-foreground">LIVE</span>
-                  </div>
-                </div>
+            <CardTitle className="flex items-center gap-2">
+              <Video className="h-5 w-5" />
+              Live Darts Stream
+            </CardTitle>
+            <div className="flex items-center gap-3">
+              {/* Detection Method Choice Chips */}
+              <ToggleGroup 
+                type="single" 
+                value={detectionMethod} 
+                onValueChange={(value) => value && setDetectionMethod(value as "generative-ai" | "computer-vision")}
+                size="sm"
+              >
+                <ToggleGroupItem value="generative-ai" aria-label="Generative AI" className="gap-1.5 text-xs">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>GenAI</span>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="computer-vision" aria-label="Traditional Computer Vision" disabled className="gap-1.5 text-xs opacity-50">
+                  <Camera className="h-3.5 w-3.5" />
+                  <span>CV</span>
+                </ToggleGroupItem>
+              </ToggleGroup>
+
+              {/* Model Selector - Only show when GenAI is selected */}
+              {detectionMethod === "generative-ai" && (
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger className="w-[180px] h-8 text-xs">
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="databricks-claude-sonnet-4-5">Claude Sonnet 4.5</SelectItem>
+                    <SelectItem value="databricks-gpt-5-1">GPT-5.1</SelectItem>
+                    <SelectItem value="databricks-llama-4-maverick">Llama 4 Maverick</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              
+              {/* Live Indicator */}
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-sm text-muted-foreground">LIVE</span>
+              </div>
+            </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
@@ -71,40 +86,11 @@ function VideoStreamContent() {
         {/* Score Detection Card - Takes 1 column on large screens, only show when GenAI is selected */}
         {detectionMethod === "generative-ai" && (
           <div className="lg:col-span-1">
-            <ScoreDetector videoRef={videoRef} />
+            <ScoreDetector videoRef={videoRef} selectedModel={selectedModel} />
           </div>
         )}
       </div>
 
-      {/* Game Status Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Game Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <span className={`text-sm font-medium ${gameStatus.is_active ? 'text-green-500' : 'text-gray-500'}`}>
-                {gameStatus.is_active ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-            {gameStatus.current_player && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Current Player</span>
-                <span className="text-sm font-medium">{gameStatus.current_player}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Score</span>
-              <span className="text-2xl font-bold">{gameStatus.current_score}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

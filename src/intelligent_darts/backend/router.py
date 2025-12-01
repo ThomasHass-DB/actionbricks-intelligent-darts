@@ -68,7 +68,8 @@ async def detect_score(
             before_image_base64=request.before_image_base64,
             after_image_base64=request.after_image_base64,
             before_timestamp=request.before_timestamp,
-            after_timestamp=request.after_timestamp
+            after_timestamp=request.after_timestamp,
+            model_endpoint=request.model
         )
         
         # Calculate confidence based on whether we got a valid score

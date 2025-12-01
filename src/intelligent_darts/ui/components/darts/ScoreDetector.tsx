@@ -8,6 +8,7 @@ import { Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface ScoreDetectorProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  selectedModel: string;
 }
 
 interface DartScore {
@@ -21,7 +22,7 @@ interface ScoreHistory {
   timestamp: number;
 }
 
-export function ScoreDetector({ videoRef }: ScoreDetectorProps) {
+export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
   const [dartScores, setDartScores] = useState<DartScore[]>([]);
   const [confidence, setConfidence] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,6 +70,7 @@ export function ScoreDetector({ videoRef }: ScoreDetectorProps) {
           after_image_base64: currentFrame.base64,
           before_timestamp: currentFrame.timestamp,
           after_timestamp: currentFrame.timestamp,
+          model: selectedModel,
         }
       });
 

@@ -7,9 +7,7 @@ from .logger import logger
 
 
 class ScoreDetectionService:
-    """Service for detecting dart scores from before/after images using Claude Sonnet"""
-    
-    MODEL_ENDPOINT = "databricks-claude-sonnet-4-5"
+    """Service for detecting dart scores from images using AI models"""
     
     SYSTEM_PROMPT = """You are a darts scoring agent. Analyze the dartboard image and identify ALL darts currently on the board.
 
@@ -69,7 +67,8 @@ Example outputs:
         before_image_base64: str,
         after_image_base64: str,
         before_timestamp: float,
-        after_timestamp: float
+        after_timestamp: float,
+        model_endpoint: str = "databricks-claude-sonnet-4-5"
     ) -> Tuple[int, str]:
         """
         Detect the score from before/after dartboard images
@@ -79,11 +78,14 @@ Example outputs:
             after_image_base64: Base64 encoded image after the throw
             before_timestamp: Timestamp of before image
             after_timestamp: Timestamp of after image
+            model_endpoint: The AI model endpoint to use
             
         Returns:
             Tuple of (score, raw_response)
         """
         try:
+            logger.info(f"Calling model endpoint: {model_endpoint}")
+            
             # Create the message content with both images
             user_message_content = [
                 self._create_text_content(
@@ -111,14 +113,12 @@ Example outputs:
                 )
             ]
             
-            logger.info(f"Calling Claude Sonnet endpoint: {self.MODEL_ENDPOINT}")
-            
             # Query the model serving endpoint
             response = self.ws.serving_endpoints.query(
-                name=self.MODEL_ENDPOINT,
+                name=model_endpoint,
                 messages=messages,
                 temperature=0.3,  # Lower temperature for more consistent scoring
-                max_tokens=10  # We only need a short response (just a number)
+                max_tokens=100  # Allow more tokens for multiple dart responses
             )
             
             # Extract the response text

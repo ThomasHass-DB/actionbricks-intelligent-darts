@@ -38,6 +38,10 @@ class ScoreDetectionIn(BaseModel):
     after_timestamp: float = Field(
         description="Timestamp of the after image in seconds"
     )
+    model: str = Field(
+        default="databricks-claude-sonnet-4-5",
+        description="The AI model endpoint to use for detection"
+    )
 
 
 class ScoreDetectionOut(BaseModel):

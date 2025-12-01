@@ -76,6 +76,8 @@ export interface ScoreDetectionIn {
   before_timestamp: number;
   /** Timestamp of the after image in seconds */
   after_timestamp: number;
+  /** The AI model endpoint to use for detection */
+  model?: string;
 }
 
 /**
