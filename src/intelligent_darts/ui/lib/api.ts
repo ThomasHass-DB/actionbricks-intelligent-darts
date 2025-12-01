@@ -84,8 +84,8 @@ export interface ScoreDetectionIn {
  * Output model for score detection
  */
 export interface ScoreDetectionOut {
-  /** The detected score from the dart throw */
-  score: number;
+  /** List of detected scores for each dart on the board */
+  scores: number[];
   /**
    * Confidence level of the detection (0-1)
    * @minimum 0

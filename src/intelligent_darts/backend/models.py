@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import List
 from .. import __version__
 
 
@@ -46,8 +47,8 @@ class ScoreDetectionIn(BaseModel):
 
 class ScoreDetectionOut(BaseModel):
     """Output model for score detection"""
-    score: int = Field(
-        description="The detected score from the dart throw"
+    scores: List[int] = Field(
+        description="List of detected scores for each dart on the board"
     )
     confidence: float = Field(
         description="Confidence level of the detection (0-1)",

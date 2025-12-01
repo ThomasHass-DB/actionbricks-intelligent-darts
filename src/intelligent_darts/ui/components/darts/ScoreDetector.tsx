@@ -74,22 +74,11 @@ export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
         }
       });
 
-      // Parse the response - expecting format like "Dart 1: 20, Dart 2: 60, Dart 3: 50"
-      const scoreText = result.data.raw_response || String(result.data.score);
-      const dartMatches = scoreText.matchAll(/Dart\s+(\d+):\s+(\d+)/gi);
-      const scores: DartScore[] = [];
-      
-      for (const match of dartMatches) {
-        scores.push({
-          dart_number: parseInt(match[1]),
-          score: parseInt(match[2])
-        });
-      }
-
-      if (scores.length === 0 && result.data.score !== undefined) {
-        // Fallback: single score
-        scores.push({ dart_number: 1, score: result.data.score });
-      }
+      // The API now returns an array of scores directly
+      const scores: DartScore[] = result.data.scores.map((score, index) => ({
+        dart_number: index + 1,
+        score: score
+      }));
 
       setDartScores(scores);
       setConfidence(result.data.confidence);

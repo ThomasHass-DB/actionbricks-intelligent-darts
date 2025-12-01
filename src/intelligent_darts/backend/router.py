@@ -63,8 +63,8 @@ async def detect_score(
         # Create the score detection service
         service = ScoreDetectionService(app_ws)
         
-        # Detect the score
-        score, raw_response = service.detect_score(
+        # Detect the scores
+        scores, raw_response = service.detect_score(
             before_image_base64=request.before_image_base64,
             after_image_base64=request.after_image_base64,
             before_timestamp=request.before_timestamp,
@@ -72,14 +72,14 @@ async def detect_score(
             model_endpoint=request.model
         )
         
-        # Calculate confidence based on whether we got a valid score
+        # Calculate confidence based on whether we got valid scores
         # In a real implementation, you might want to get this from the model
-        confidence = 0.95 if score > 0 else 0.5
+        confidence = 0.95 if any(s > 0 for s in scores) else 0.5
         
-        logger.info(f"Detected score: {score} (confidence: {confidence})")
+        logger.info(f"Detected {len(scores)} dart score(s): {scores} (confidence: {confidence})")
         
         return ScoreDetectionOut(
-            score=score,
+            scores=scores,
             confidence=confidence,
             raw_response=raw_response
         )

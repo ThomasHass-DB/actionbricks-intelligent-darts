@@ -1,6 +1,6 @@
 """Service for detecting dart scores using Claude Sonnet 4.5 model"""
 import base64
-from typing import Tuple
+from typing import Tuple, List
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 from .logger import logger
@@ -12,9 +12,9 @@ class ScoreDetectionService:
     SYSTEM_PROMPT = """You are a darts scoring agent. Analyze the dartboard image and identify ALL darts currently on the board.
 
 PROCESS:
-1. Identify all darts visible on the dartboard
+1. Identify all darts visible on the dartboard (count them carefully)
 2. For each dart, determine its exact position on the board
-3. Calculate the score for each dart
+3. Calculate the score for each dart individually
 
 SCORING RULES:
 - Inner bullseye (red center): 50 points
@@ -24,22 +24,15 @@ SCORING RULES:
 - Single segments: Face value (1-20)
 - Outside scoring area: 0 points
 
-OUTPUT FORMAT:
-If multiple darts are present, list each one:
-Dart 1: [score]
-Dart 2: [score]
-Dart 3: [score]
+CRITICAL: Return ONLY a comma-separated list of individual dart scores. Do NOT sum them up.
 
-If only one dart is present:
-Dart 1: [score]
+OUTPUT FORMAT (scores only, separated by commas):
+- If 3 darts: "20, 60, 50"
+- If 2 darts: "60, 50"
+- If 1 dart: "20"
+- If no darts: "0"
 
-If no darts are present:
-Dart 1: 0
-
-Example outputs:
-- "Dart 1: 20"
-- "Dart 1: 60, Dart 2: 50"
-- "Dart 1: 20, Dart 2: 60, Dart 3: 50"
+DO NOT include labels like "Dart 1:" or "Dart 2:". ONLY return the numbers separated by commas.
 """
 
     def __init__(self, workspace_client: WorkspaceClient):
@@ -69,7 +62,7 @@ Example outputs:
         before_timestamp: float,
         after_timestamp: float,
         model_endpoint: str = "databricks-claude-sonnet-4-5"
-    ) -> Tuple[int, str]:
+    ) -> Tuple[List[int], str]:
         """
         Detect the score from before/after dartboard images
         
@@ -81,7 +74,7 @@ Example outputs:
             model_endpoint: The AI model endpoint to use
             
         Returns:
-            Tuple of (score, raw_response)
+            Tuple of (list of scores for each dart, raw_response)
         """
         try:
             logger.info(f"Calling model endpoint: {model_endpoint}")
@@ -129,48 +122,56 @@ Example outputs:
                 elif hasattr(response.choices[0], 'text'):
                     raw_response = response.choices[0].text
             
-            logger.info(f"Raw response from Claude: {raw_response}")
+            logger.info(f"Raw response from model: {raw_response}")
             
-            # Parse the score from the response
-            score = self._parse_score(raw_response)
+            # Parse the scores from the response
+            scores = self._parse_scores(raw_response)
             
-            return score, raw_response
+            return scores, raw_response
             
         except Exception as e:
             logger.error(f"Error detecting score: {str(e)}", exc_info=True)
             raise
     
-    def _parse_score(self, response: str) -> int:
+    def _parse_scores(self, response: str) -> List[int]:
         """
-        Parse the score from the model response
+        Parse multiple dart scores from the model response
         
         Args:
-            response: Raw response from the model
+            response: Raw response from the model (expected format: "20, 60, 50" or "20")
             
         Returns:
-            Parsed integer score
+            List of parsed integer scores
         """
         try:
-            # Clean the response and extract the number
+            # Clean the response
             cleaned = response.strip()
             
-            # Try to extract just the number
+            # Extract all numbers from the response
             import re
             numbers = re.findall(r'\d+', cleaned)
             
             if numbers:
-                score = int(numbers[0])
-                # Validate score is in reasonable range
-                if 0 <= score <= 180:  # Max possible score in one throw is 60 (triple 20)
-                    return score
+                scores = []
+                for num_str in numbers:
+                    score = int(num_str)
+                    # Validate each score is in reasonable range (max 60 for triple 20)
+                    if 0 <= score <= 60:
+                        scores.append(score)
+                    else:
+                        logger.warning(f"Score {score} out of valid range (0-60), skipping")
+                
+                if scores:
+                    logger.info(f"Parsed {len(scores)} dart score(s): {scores}")
+                    return scores
                 else:
-                    logger.warning(f"Score {score} out of valid range, returning 0")
-                    return 0
+                    logger.warning(f"No valid scores found in response: {response}")
+                    return [0]
             else:
-                logger.warning(f"Could not parse score from response: {response}")
-                return 0
+                logger.warning(f"Could not parse any scores from response: {response}")
+                return [0]
                 
         except Exception as e:
-            logger.error(f"Error parsing score from response '{response}': {str(e)}")
-            return 0
+            logger.error(f"Error parsing scores from response '{response}': {str(e)}")
+            return [0]
 
