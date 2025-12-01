@@ -159,11 +159,110 @@ ONLY return the comma-separated numbers. Nothing else.
             # Parse the scores from the response
             scores = self._parse_scores(raw_response)
             
+            # If parsing failed (empty list), retry with format correction
+            if not scores:
+                logger.warning("Initial parsing failed. Attempting format correction...")
+                scores, raw_response = self._retry_with_format_correction(
+                    model_endpoint, 
+                    after_image_base64, 
+                    after_timestamp, 
+                    raw_response
+                )
+                
+                # If still empty after retry, return [0] as safe default
+                if not scores:
+                    logger.error("Both attempts failed. Returning [0] as safe default")
+                    scores = [0]
+            
             return scores, raw_response
             
         except Exception as e:
             logger.error(f"Error detecting score: {str(e)}", exc_info=True)
             raise
+    
+    def _retry_with_format_correction(
+        self,
+        model_endpoint: str,
+        image_base64: str,
+        timestamp: float,
+        previous_response: str
+    ) -> Tuple[List[int], str]:
+        """
+        Retry the request with format correction instructions
+        
+        Args:
+            model_endpoint: The model endpoint to use
+            image_base64: The image data
+            timestamp: The timestamp
+            previous_response: The previous response that failed to parse
+            
+        Returns:
+            Tuple of (list of scores, raw response)
+        """
+        try:
+            logger.info("Retrying with format correction prompt...")
+            
+            # Create a follow-up message asking for correct format
+            correction_prompt = f"""Your previous response was: "{previous_response}"
+
+This response could not be parsed correctly. Please analyze the dartboard image again and respond with ONLY comma-separated numbers.
+
+CRITICAL: Your response must be ONLY numbers separated by commas. Nothing else.
+
+Examples of CORRECT responses:
+- "20, 60, 50" (for 3 darts)
+- "60, 50" (for 2 darts)
+- "20" (for 1 dart)
+- "0" (for no darts)
+
+Do NOT include any text, labels, or explanations. ONLY the numbers.
+
+Now, what are the scores for each dart visible on the dartboard?"""
+
+            user_message_content = [
+                self._create_image_content(image_base64, timestamp, "Dartboard"),
+                self._create_text_content(correction_prompt)
+            ]
+            
+            messages = [
+                ChatMessage(
+                    role=ChatMessageRole.USER,
+                    content=user_message_content
+                )
+            ]
+            
+            # Query the model again
+            response = self.ws.serving_endpoints.query(
+                name=model_endpoint,
+                messages=messages,
+                temperature=0.1,  # Lower temperature for more deterministic output
+                max_tokens=50
+            )
+            
+            # Extract the response
+            corrected_response = ""
+            if hasattr(response, 'choices') and response.choices:
+                if hasattr(response.choices[0], 'message'):
+                    corrected_response = response.choices[0].message.content
+                elif hasattr(response.choices[0], 'text'):
+                    corrected_response = response.choices[0].text
+            
+            logger.info(f"Corrected response from model: {corrected_response}")
+            
+            # Try parsing again
+            scores = self._parse_scores(corrected_response)
+            
+            # If still failed, return empty list (caller will handle default)
+            if not scores:
+                logger.error("Format correction retry also failed. Returning empty list")
+                return [], f"Original: {previous_response}\nCorrected attempt: {corrected_response}"
+            
+            return scores, f"Original: {previous_response}\nCorrected: {corrected_response}"
+            
+        except Exception as e:
+            logger.error(f"Error in format correction retry: {str(e)}", exc_info=True)
+            # Return empty list (caller will handle default)
+            return [], previous_response
     
     def _parse_scores(self, response: str) -> List[int]:
         """
@@ -173,11 +272,16 @@ ONLY return the comma-separated numbers. Nothing else.
             response: Raw response from the model (expected format: "20, 60, 50" or "20")
             
         Returns:
-            List of parsed integer scores
+            List of parsed integer scores (empty list if parsing completely fails)
         """
         try:
             # Clean the response
             cleaned = response.strip()
+            
+            # Check if response indicates no darts
+            if any(phrase in cleaned.lower() for phrase in ["no dart", "no visible dart", "empty", "none"]):
+                logger.info("Response indicates no darts visible")
+                return [0]
             
             # Extract all numbers from the response
             import re
@@ -198,12 +302,12 @@ ONLY return the comma-separated numbers. Nothing else.
                     return scores
                 else:
                     logger.warning(f"No valid scores found in response: {response}")
-                    return [0]
+                    return []  # Return empty to trigger retry
             else:
                 logger.warning(f"Could not parse any scores from response: {response}")
-                return [0]
+                return []  # Return empty to trigger retry
                 
         except Exception as e:
             logger.error(f"Error parsing scores from response '{response}': {str(e)}")
-            return [0]
+            return []  # Return empty to trigger retry
 
