@@ -150,21 +150,45 @@ ONLY return the comma-separated numbers. Nothing else.
             logger.info(f"Full API response type: {type(response)}")
             logger.info(f"Full API response: {response}")
             
+            # Check for usage/token info
+            if hasattr(response, 'usage'):
+                logger.info(f"Token usage - Prompt: {response.usage.prompt_tokens}, Completion: {response.usage.completion_tokens}, Total: {response.usage.total_tokens}")
+            
             # Extract the response text
             raw_response = ""
             if hasattr(response, 'choices') and response.choices:
                 logger.info(f"Response has {len(response.choices)} choices")
-                if hasattr(response.choices[0], 'message'):
-                    logger.info(f"Choice 0 has message: {response.choices[0].message}")
-                    raw_response = response.choices[0].message.content
-                elif hasattr(response.choices[0], 'text'):
-                    logger.info(f"Choice 0 has text: {response.choices[0].text}")
-                    raw_response = response.choices[0].text
+                choice = response.choices[0]
+                
+                # Check finish reason for issues
+                if hasattr(choice, 'finish_reason') and choice.finish_reason:
+                    logger.info(f"Finish reason: {choice.finish_reason}")
+                    if choice.finish_reason in ['content_filter', 'safety']:
+                        logger.error(f"Model response blocked by {choice.finish_reason}")
+                        raise ValueError(f"Model response blocked by {choice.finish_reason}. The image may have been flagged by safety filters.")
+                
+                if hasattr(choice, 'message'):
+                    logger.info(f"Choice 0 has message: {choice.message}")
+                    raw_response = choice.message.content or ""
+                    
+                    # Check if content is empty but there's a refusal
+                    if not raw_response and hasattr(choice.message, 'refusal') and choice.message.refusal:
+                        logger.error(f"Model refused to respond: {choice.message.refusal}")
+                        raise ValueError(f"Model refused: {choice.message.refusal}")
+                    
+                elif hasattr(choice, 'text'):
+                    logger.info(f"Choice 0 has text: {choice.text}")
+                    raw_response = choice.text or ""
                 else:
-                    logger.error(f"Choice 0 structure: {dir(response.choices[0])}")
+                    logger.error(f"Choice 0 structure: {dir(choice)}")
             else:
                 logger.error(f"Response structure: {dir(response)}")
                 logger.error(f"Response has no choices or choices is empty")
+            
+            # Check if response is empty
+            if not raw_response or raw_response.strip() == "":
+                logger.error(f"Model returned empty response. Model: {model_endpoint}, Completion tokens: {response.usage.completion_tokens if hasattr(response, 'usage') else 'unknown'}")
+                raise ValueError(f"Model {model_endpoint} returned empty response. This may indicate a compatibility issue or safety filter.")
             
             logger.info(f"Extracted raw response from model: {raw_response}")
             
