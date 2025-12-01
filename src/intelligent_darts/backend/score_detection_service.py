@@ -146,15 +146,27 @@ ONLY return the comma-separated numbers. Nothing else.
                 max_tokens=100  # Allow more tokens for multiple dart responses
             )
             
+            # Log the full response structure for debugging
+            logger.info(f"Full API response type: {type(response)}")
+            logger.info(f"Full API response: {response}")
+            
             # Extract the response text
             raw_response = ""
             if hasattr(response, 'choices') and response.choices:
+                logger.info(f"Response has {len(response.choices)} choices")
                 if hasattr(response.choices[0], 'message'):
+                    logger.info(f"Choice 0 has message: {response.choices[0].message}")
                     raw_response = response.choices[0].message.content
                 elif hasattr(response.choices[0], 'text'):
+                    logger.info(f"Choice 0 has text: {response.choices[0].text}")
                     raw_response = response.choices[0].text
+                else:
+                    logger.error(f"Choice 0 structure: {dir(response.choices[0])}")
+            else:
+                logger.error(f"Response structure: {dir(response)}")
+                logger.error(f"Response has no choices or choices is empty")
             
-            logger.info(f"Raw response from model: {raw_response}")
+            logger.info(f"Extracted raw response from model: {raw_response}")
             
             # Parse the scores from the response
             scores = self._parse_scores(raw_response)
