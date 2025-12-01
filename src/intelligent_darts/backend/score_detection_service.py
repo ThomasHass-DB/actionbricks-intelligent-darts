@@ -9,30 +9,35 @@ from .logger import logger
 class ScoreDetectionService:
     """Service for detecting dart scores from images using AI models"""
     
-    SYSTEM_PROMPT = """You are a darts scoring agent. Analyze the dartboard image and identify ALL darts currently on the board.
+    SYSTEM_PROMPT = """You are a professional darts scoring agent. Analyze the provided dartboard image and identify ALL darts currently stuck in the board.
 
-PROCESS:
-1. Identify all darts visible on the dartboard (count them carefully)
-2. For each dart, determine its exact position on the board
-3. Calculate the score for each dart individually
+TASK:
+Carefully examine the dartboard image and:
+1. Count how many darts are visible on the board (look carefully - there may be 1, 2, or 3 darts)
+2. For each dart, determine its exact position on the dartboard
+3. Calculate the individual score for each dart based on where it landed
 
-SCORING RULES:
-- Inner bullseye (red center): 50 points
-- Outer bullseye (green ring): 25 points
-- Triple ring (inner thin ring): 3x the segment number
-- Double ring (outer thin ring): 2x the segment number
-- Single segments: Face value (1-20)
-- Outside scoring area: 0 points
+DARTBOARD SCORING RULES:
+- Inner bullseye (small red center): 50 points
+- Outer bullseye (green ring around center): 25 points
+- Triple ring (thin inner colored ring): 3× the segment number (e.g., triple 20 = 60)
+- Double ring (thin outer colored ring): 2× the segment number (e.g., double 20 = 40)
+- Single segments (large colored areas): Face value 1-20
+- Outside the scoring area: 0 points
 
-CRITICAL: Return ONLY a comma-separated list of individual dart scores. Do NOT sum them up.
+CRITICAL INSTRUCTIONS:
+- Return ONLY a comma-separated list of individual dart scores
+- Do NOT sum the scores together
+- Do NOT add any labels, explanations, or extra text
+- Count each dart separately
 
-OUTPUT FORMAT (scores only, separated by commas):
-- If 3 darts: "20, 60, 50"
-- If 2 darts: "60, 50"
-- If 1 dart: "20"
-- If no darts: "0"
+OUTPUT FORMAT (numbers only, separated by commas):
+- If 3 darts visible: "20, 60, 50"
+- If 2 darts visible: "60, 50"  
+- If 1 dart visible: "20"
+- If no darts visible: "0"
 
-DO NOT include labels like "Dart 1:" or "Dart 2:". ONLY return the numbers separated by commas.
+ONLY return the comma-separated numbers. Nothing else.
 """
 
     def __init__(self, workspace_client: WorkspaceClient):
@@ -79,19 +84,13 @@ DO NOT include labels like "Dart 1:" or "Dart 2:". ONLY return the numbers separ
         try:
             logger.info(f"Calling model endpoint: {model_endpoint}")
             
-            # Create the message content with both images
+            # Use the "after" image as the current frame to analyze
+            # (Frontend sends the same image for both, so we just use one)
             user_message_content = [
                 self._create_text_content(
-                    f"BEFORE image (timestamp: {before_timestamp:.2f}s):"
+                    "Analyze this dartboard image and return the score for each dart visible on the board:"
                 ),
-                self._create_image_content(before_image_base64, before_timestamp, "BEFORE"),
-                self._create_text_content(
-                    f"AFTER image (timestamp: {after_timestamp:.2f}s):"
-                ),
-                self._create_image_content(after_image_base64, after_timestamp, "AFTER"),
-                self._create_text_content(
-                    "What score did the newly thrown dart achieve? Respond with only the integer score."
-                )
+                self._create_image_content(after_image_base64, after_timestamp, "Current Frame")
             ]
             
             # Create messages for the API

@@ -63,11 +63,12 @@ export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
     }
 
     try {
-      // Send the same image twice - we're detecting all darts on current screen
+      // Send the current frame for analysis
+      // Note: API still expects before/after fields for compatibility, but we send the same image
       const result = await detectScoreMutation.mutateAsync({
         data: {
           before_image_base64: currentFrame.base64,
-          after_image_base64: currentFrame.base64,
+          after_image_base64: currentFrame.base64,  // Current frame to analyze
           before_timestamp: currentFrame.timestamp,
           after_timestamp: currentFrame.timestamp,
           model: selectedModel,
