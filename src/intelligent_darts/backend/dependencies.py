@@ -29,6 +29,14 @@ def get_obo_ws(
     )  # set pat explicitly to avoid issues with SP client
 
 
+def get_app_ws() -> WorkspaceClient:
+    """
+    Returns a Databricks Workspace client using the app's service principal credentials.
+    This should be used for operations that require app-level permissions (like accessing serving endpoints).
+    """
+    return WorkspaceClient()  # Uses app's service principal credentials from environment
+
+
 def get_session() -> Generator[Session, None, None]:
     """
     Returns a SQLModel session.

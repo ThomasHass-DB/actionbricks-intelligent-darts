@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from .models import VersionOut, VideoStreamOut, GameStatusOut, ScoreDetectionIn, ScoreDetectionOut
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.iam import User as UserOut
-from .dependencies import get_obo_ws
+from .dependencies import get_obo_ws, get_app_ws
 from .config import conf
 from .score_detection_service import ScoreDetectionService
 from .logger import logger
@@ -46,7 +46,7 @@ async def get_game_status():
 @api.post("/detect-score", response_model=ScoreDetectionOut, operation_id="detectScore")
 async def detect_score(
     request: ScoreDetectionIn,
-    obo_ws: Annotated[WorkspaceClient, Depends(get_obo_ws)]
+    app_ws: Annotated[WorkspaceClient, Depends(get_app_ws)]
 ):
     """
     Detect the score from before/after dartboard images using Claude Sonnet 4.5
@@ -61,7 +61,7 @@ async def detect_score(
         )
         
         # Create the score detection service
-        service = ScoreDetectionService(obo_ws)
+        service = ScoreDetectionService(app_ws)
         
         # Detect the score
         score, raw_response = service.detect_score(

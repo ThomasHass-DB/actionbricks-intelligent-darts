@@ -16,9 +16,10 @@ resources:
       description: "intelligent-darts created with apx"
       source_code_path: ./.build
       resources:
-        - name: databricks-claude-sonnet-4-5
-          description: Claude Sonnet 4.5 model serving endpoint for dart score detection
-          permission: CAN_QUERY
+        - name: genai
+          serving_endpoint:
+            name: databricks-claude-sonnet-4-5
+            permission: CAN_QUERY
 
 
 
