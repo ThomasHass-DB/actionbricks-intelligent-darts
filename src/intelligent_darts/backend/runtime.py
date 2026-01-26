@@ -10,12 +10,16 @@ from .logger import logger
 class Runtime:
     def __init__(self):
         self.config: AppConfig = conf
+        self._ws: WorkspaceClient | None = None
 
     @property
     def ws(self) -> WorkspaceClient:
         # note - this workspace client is usually an SP-based client
         # in development it usually uses the DATABRICKS_CONFIG_PROFILE
-        return WorkspaceClient()
+        # Lazy initialization - only create when actually needed
+        if self._ws is None:
+            self._ws = WorkspaceClient()
+        return self._ws
 
     @property
     def engine_url(self) -> str:

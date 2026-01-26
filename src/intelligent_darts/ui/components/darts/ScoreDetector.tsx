@@ -7,19 +7,13 @@ import { useState, useRef, useCallback } from "react";
 import { Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface ScoreDetectorProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: React.RefObject<HTMLVideoElement | HTMLCanvasElement | null>;
   selectedModel: string;
 }
 
 interface DartScore {
   dart_number: number;
   score: number;
-}
-
-interface ScoreHistory {
-  score: number;
-  confidence: number;
-  timestamp: number;
 }
 
 export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
@@ -32,28 +26,46 @@ export function ScoreDetector({ videoRef, selectedModel }: ScoreDetectorProps) {
 
 
   const captureCurrentFrame = useCallback(() => {
-    const video = videoRef.current;
+    const source = videoRef.current;
     const canvas = canvasRef.current;
     
-    if (!video || !canvas) {
+    if (!source || !canvas) {
+      console.error('Video/Canvas source or capture canvas not available');
       return null;
     }
-
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       return null;
     }
+
+    // Handle different source types
+    if (source instanceof HTMLVideoElement) {
+      // Local video source
+      canvas.width = source.videoWidth || 640;
+      canvas.height = source.videoHeight || 480;
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const base64 = dataUrl.split(',')[1];
+      const timestamp = source.currentTime || 0;
+
+      return { base64, timestamp };
+    } else if (source instanceof HTMLCanvasElement) {
+      // WebRTC canvas source
+      canvas.width = source.width || 640;
+      canvas.height = source.height || 480;
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const base64 = dataUrl.split(',')[1];
+      const timestamp = Date.now() / 1000;
+
+      return { base64, timestamp };
+    }
     
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-    const base64 = dataUrl.split(',')[1];
-    const timestamp = video.currentTime;
-
-    return { base64, timestamp };
+    console.error('Unknown source type for frame capture');
+    return null;
   }, [videoRef]);
 
   const handleDetectScore = async () => {

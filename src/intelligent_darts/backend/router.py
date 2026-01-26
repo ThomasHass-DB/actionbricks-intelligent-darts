@@ -1,12 +1,18 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException
-from .models import VersionOut, VideoStreamOut, GameStatusOut, ScoreDetectionIn, ScoreDetectionOut
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from .models import (
+    VersionOut, VideoStreamOut, GameStatusOut, ScoreDetectionIn, ScoreDetectionOut,
+    AWSCredentialsIn, WebRTCConfigOut, WebRTCStatusOut
+)
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.iam import User as UserOut
 from .dependencies import get_obo_ws, get_app_ws
 from .config import conf
 from .score_detection_service import ScoreDetectionService
+from .webrtc_service import connection_manager
 from .logger import logger
+import json
+import uuid
 
 api = APIRouter(prefix=conf.api_prefix)
 
@@ -90,3 +96,180 @@ async def detect_score(
             status_code=500,
             detail=f"Failed to detect score: {str(e)}"
         )
+
+
+@api.post("/webrtc/credentials", response_model=WebRTCStatusOut, operation_id="storeWebRTCCredentials")
+async def store_webrtc_credentials(credentials: AWSCredentialsIn):
+    """
+    Store AWS credentials for WebRTC connection
+    
+    This endpoint stores the AWS credentials in the server session for establishing
+    a WebRTC connection to Kinesis Video Streams.
+    """
+    try:
+        # Generate a session ID (in production, use proper session management)
+        session_id = str(uuid.uuid4())
+        
+        # Store credentials
+        connection_manager.store_credentials(
+            session_id=session_id,
+            access_key_id=credentials.access_key_id,
+            secret_access_key=credentials.secret_access_key,
+            region=credentials.region
+        )
+        
+        logger.info(f"Stored credentials for session {session_id}")
+        
+        return WebRTCStatusOut(
+            connected=False,
+            status="credentials_stored"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error storing credentials: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to store credentials: {str(e)}"
+        )
+
+
+@api.get("/webrtc/config", response_model=WebRTCConfigOut, operation_id="getWebRTCConfig")
+async def get_webrtc_config():
+    """
+    Get WebRTC configuration for Kinesis Video Streams
+    
+    Returns the signaling channel name and region for the WebRTC connection.
+    """
+    try:
+        return WebRTCConfigOut(
+            signaling_channel="actionbricks_demo_darts",
+            region="us-east-1",
+            ice_servers=[]  # Will be populated after connection
+        )
+    except Exception as e:
+        logger.error(f"Error getting WebRTC config: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get WebRTC config: {str(e)}"
+        )
+
+
+@api.websocket("/webrtc/stream")
+async def webrtc_stream(websocket: WebSocket):
+    """
+    WebSocket endpoint for streaming video from Kinesis WebRTC
+    
+    This endpoint establishes a WebSocket connection and streams video frames
+    from the AWS Kinesis WebRTC connection to the frontend.
+    """
+    await websocket.accept()
+    session_id = None
+    
+    try:
+        logger.info("WebSocket connection established")
+        
+        # Wait for initial message with session info
+        init_data = await websocket.receive_text()
+        init_msg = json.loads(init_data)
+        
+        if init_msg.get('type') == 'init':
+            # Extract credentials from init message
+            credentials = init_msg.get('credentials', {})
+            access_key_id = credentials.get('access_key_id')
+            secret_access_key = credentials.get('secret_access_key')
+            region = credentials.get('region', 'us-east-1')
+            
+            if not access_key_id or not secret_access_key:
+                await websocket.send_text(json.dumps({
+                    'type': 'error',
+                    'message': 'Missing credentials'
+                }))
+                await websocket.close()
+                return
+            
+            # Generate session ID and store credentials
+            session_id = str(uuid.uuid4())
+            connection_manager.store_credentials(
+                session_id=session_id,
+                access_key_id=access_key_id,
+                secret_access_key=secret_access_key,
+                region=region
+            )
+            
+            # Create WebRTC connection
+            try:
+                connection = await connection_manager.create_connection(
+                    session_id=session_id,
+                    signaling_channel="actionbricks_demo_darts"
+                )
+                
+                # Initialize the connection
+                await connection.initialize()
+                
+                # Send success message
+                await websocket.send_text(json.dumps({
+                    'type': 'connected',
+                    'status': 'WebRTC connection initialized'
+                }))
+                
+                # Note: In a complete implementation, we would now:
+                # 1. Call connection.connect_as_viewer() to establish WebRTC peer connection
+                # 2. Start streaming frames from connection.get_next_frame()
+                # 
+                # For now, we'll send a placeholder message
+                await websocket.send_text(json.dumps({
+                    'type': 'info',
+                    'message': 'WebRTC connection established. Frame streaming not yet implemented.'
+                }))
+                
+                # Keep connection alive and stream frames
+                while True:
+                    # In a complete implementation, get frames from the connection:
+                    # frame = await connection.get_next_frame()
+                    # if frame:
+                    #     await websocket.send_text(json.dumps({
+                    #         'type': 'frame',
+                    #         'timestamp': frame['timestamp'],
+                    #         'data': frame['frame']
+                    #     }))
+                    
+                    # For now, just wait for incoming messages
+                    try:
+                        message = await websocket.receive_text()
+                        msg_data = json.loads(message)
+                        
+                        if msg_data.get('type') == 'ping':
+                            await websocket.send_text(json.dumps({'type': 'pong'}))
+                        elif msg_data.get('type') == 'close':
+                            break
+                            
+                    except WebSocketDisconnect:
+                        break
+                
+            except Exception as e:
+                logger.error(f"Error establishing WebRTC connection: {str(e)}", exc_info=True)
+                await websocket.send_text(json.dumps({
+                    'type': 'error',
+                    'message': f'Failed to establish WebRTC connection: {str(e)}'
+                }))
+        
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Error in WebSocket handler: {str(e)}", exc_info=True)
+        try:
+            await websocket.send_text(json.dumps({
+                'type': 'error',
+                'message': str(e)
+            }))
+        except:
+            pass
+    finally:
+        # Clean up
+        if session_id:
+            await connection_manager.close_connection(session_id)
+            connection_manager.clear_credentials(session_id)
+        try:
+            await websocket.close()
+        except:
+            pass

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import Navbar from "@/components/apx/navbar";
+import Navbar from "@/components/apx/Navbar";
 import { DartsVideoStream } from "@/components/darts/VideoStream";
 import { Target } from "lucide-react";
 import { ModeToggle } from "@/components/apx/mode-toggle";

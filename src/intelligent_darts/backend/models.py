@@ -58,3 +58,40 @@ class ScoreDetectionOut(BaseModel):
     raw_response: str = Field(
         description="Raw response from the AI model"
     )
+
+
+class AWSCredentialsIn(BaseModel):
+    """Input model for AWS credentials"""
+    access_key_id: str = Field(
+        description="AWS Access Key ID"
+    )
+    secret_access_key: str = Field(
+        description="AWS Secret Access Key"
+    )
+    region: str = Field(
+        default="us-east-1",
+        description="AWS Region"
+    )
+
+
+class WebRTCConfigOut(BaseModel):
+    """Output model for WebRTC configuration"""
+    signaling_channel: str = Field(
+        description="Name of the Kinesis Video Signaling Channel"
+    )
+    region: str = Field(
+        description="AWS Region"
+    )
+    ice_servers: List[dict] = Field(
+        description="List of ICE servers for WebRTC connection"
+    )
+
+
+class WebRTCStatusOut(BaseModel):
+    """Output model for WebRTC connection status"""
+    connected: bool = Field(
+        description="Whether the WebRTC connection is established"
+    )
+    status: str = Field(
+        description="Current connection status"
+    )

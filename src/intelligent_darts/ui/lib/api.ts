@@ -25,6 +25,18 @@ import type {
 import * as axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 
+/**
+ * Input model for AWS credentials
+ */
+export interface AWSCredentialsIn {
+  /** AWS Access Key ID */
+  access_key_id: string;
+  /** AWS Secret Access Key */
+  secret_access_key: string;
+  /** AWS Region */
+  region?: string;
+}
+
 export type ComplexValueDisplay = string | null;
 
 export type ComplexValuePrimary = boolean | null;
@@ -160,6 +172,30 @@ export interface VideoStreamOut {
   width: number;
   height: number;
   fps: number;
+}
+
+export type WebRTCConfigOutIceServersItem = { [key: string]: unknown };
+
+/**
+ * Output model for WebRTC configuration
+ */
+export interface WebRTCConfigOut {
+  /** Name of the Kinesis Video Signaling Channel */
+  signaling_channel: string;
+  /** AWS Region */
+  region: string;
+  /** List of ICE servers for WebRTC connection */
+  ice_servers: WebRTCConfigOutIceServersItem[];
+}
+
+/**
+ * Output model for WebRTC connection status
+ */
+export interface WebRTCStatusOut {
+  /** Whether the WebRTC connection is established */
+  connected: boolean;
+  /** Current connection status */
+  status: string;
 }
 
 /**
@@ -1257,3 +1293,366 @@ export const useDetectScore = <
 
   return useMutation(mutationOptions, queryClient);
 };
+
+/**
+ * Store AWS credentials for WebRTC connection
+
+This endpoint stores the AWS credentials in the server session for establishing
+a WebRTC connection to Kinesis Video Streams.
+ * @summary Store Webrtc Credentials
+ */
+export const storeWebRTCCredentials = (
+  aWSCredentialsIn: AWSCredentialsIn,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<WebRTCStatusOut>> => {
+  return axios.default.post(
+    `/api/webrtc/credentials`,
+    aWSCredentialsIn,
+    options,
+  );
+};
+
+export const getStoreWebRTCCredentialsMutationOptions = <
+  TError = AxiosError<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof storeWebRTCCredentials>>,
+    TError,
+    { data: AWSCredentialsIn },
+    TContext
+  >;
+  axios?: AxiosRequestConfig;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof storeWebRTCCredentials>>,
+  TError,
+  { data: AWSCredentialsIn },
+  TContext
+> => {
+  const mutationKey = ["storeWebRTCCredentials"];
+  const { mutation: mutationOptions, axios: axiosOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, axios: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof storeWebRTCCredentials>>,
+    { data: AWSCredentialsIn }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return storeWebRTCCredentials(data, axiosOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StoreWebRTCCredentialsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof storeWebRTCCredentials>>
+>;
+export type StoreWebRTCCredentialsMutationBody = AWSCredentialsIn;
+export type StoreWebRTCCredentialsMutationError =
+  AxiosError<HTTPValidationError>;
+
+/**
+ * @summary Store Webrtc Credentials
+ */
+export const useStoreWebRTCCredentials = <
+  TError = AxiosError<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof storeWebRTCCredentials>>,
+      TError,
+      { data: AWSCredentialsIn },
+      TContext
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof storeWebRTCCredentials>>,
+  TError,
+  { data: AWSCredentialsIn },
+  TContext
+> => {
+  const mutationOptions = getStoreWebRTCCredentialsMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+
+/**
+ * Get WebRTC configuration for Kinesis Video Streams
+
+Returns the signaling channel name and region for the WebRTC connection.
+ * @summary Get Webrtc Config
+ */
+export const getWebRTCConfig = (
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<WebRTCConfigOut>> => {
+  return axios.default.get(`/api/webrtc/config`, options);
+};
+
+export const getGetWebRTCConfigQueryKey = () => {
+  return [`/api/webrtc/config`] as const;
+};
+
+export const getGetWebRTCConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof getWebRTCConfig>>, TError, TData>
+  >;
+  axios?: AxiosRequestConfig;
+}) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWebRTCConfigQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getWebRTCConfig>>> = ({
+    signal,
+  }) => getWebRTCConfig({ signal, ...axiosOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getWebRTCConfig>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetWebRTCConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWebRTCConfig>>
+>;
+export type GetWebRTCConfigQueryError = AxiosError<unknown>;
+
+export function useGetWebRTCConfig<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWebRTCConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getWebRTCConfig>>
+        >,
+        "initialData"
+      >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetWebRTCConfig<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWebRTCConfig>>,
+          TError,
+          Awaited<ReturnType<typeof getWebRTCConfig>>
+        >,
+        "initialData"
+      >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetWebRTCConfig<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Webrtc Config
+ */
+
+export function useGetWebRTCConfig<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetWebRTCConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+export const getGetWebRTCConfigSuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(options?: {
+  query?: Partial<
+    UseSuspenseQueryOptions<
+      Awaited<ReturnType<typeof getWebRTCConfig>>,
+      TError,
+      TData
+    >
+  >;
+  axios?: AxiosRequestConfig;
+}) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetWebRTCConfigQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getWebRTCConfig>>> = ({
+    signal,
+  }) => getWebRTCConfig({ signal, ...axiosOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getWebRTCConfig>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetWebRTCConfigSuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getWebRTCConfig>>
+>;
+export type GetWebRTCConfigSuspenseQueryError = AxiosError<unknown>;
+
+export function useGetWebRTCConfigSuspense<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetWebRTCConfigSuspense<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetWebRTCConfigSuspense<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Webrtc Config
+ */
+
+export function useGetWebRTCConfigSuspense<
+  TData = Awaited<ReturnType<typeof getWebRTCConfig>>,
+  TError = AxiosError<unknown>,
+>(
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getWebRTCConfig>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetWebRTCConfigSuspenseQueryOptions(options);
+
+  const query = useSuspenseQuery(
+    queryOptions,
+    queryClient,
+  ) as UseSuspenseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}

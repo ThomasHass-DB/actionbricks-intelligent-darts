@@ -17,6 +17,7 @@ src/intelligent_darts/_metadata.py
 
 # build files
 dist
+__dist__
 
 # js-related
 node_modules/

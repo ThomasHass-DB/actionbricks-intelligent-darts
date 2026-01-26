@@ -106,6 +106,11 @@ export default defineConfig(async () => {
       react(),
       tailwindcss(),
     ],
+    define: {
+      __APP_NAME__: JSON.stringify(APP_NAME),
+      global: 'globalThis', // Polyfill for Node.js global in browser
+      'process.env': '{}', // Polyfill for process.env
+    },
     // setup proxy for the api, only used in development
     server: {
       host: HOST,
@@ -116,6 +121,7 @@ export default defineConfig(async () => {
           target: `http://${HOST}:${BACKEND_PORT}`,
           changeOrigin: true,
           secure: false,
+          ws: true, // Enable WebSocket proxying
         },
       },
     },
@@ -127,9 +133,6 @@ export default defineConfig(async () => {
     build: {
       outDir: OUT_DIR,
       emptyOutDir: true,
-    },
-    define: {
-      __APP_NAME__: JSON.stringify(APP_NAME),
     },
   };
 });
