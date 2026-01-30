@@ -37,6 +37,80 @@ export interface AWSCredentialsIn {
   region?: string;
 }
 
+/**
+ * Output model for commentary history
+ */
+export interface CommentaryHistoryOut {
+  /** List of commentary records */
+  commentaries: CommentaryOut[];
+  /** Session identifier */
+  session_id: string;
+  /** Total number of commentaries */
+  total_count: number;
+}
+
+/**
+ * Optional detected scores to include in context
+ */
+export type CommentaryInScores = number[] | null;
+
+/**
+ * Optional confidence level of score detection
+ */
+export type CommentaryInConfidence = number | null;
+
+/**
+ * Input model for generating commentary
+ */
+export interface CommentaryIn {
+  /** Base64 encoded image of the current frame */
+  image_base64: string;
+  /** Timestamp of the frame in seconds */
+  frame_timestamp: number;
+  /** Unique session identifier for the video analysis */
+  session_id: string;
+  /** The AI model endpoint to use for commentary */
+  model?: string;
+  /** Optional detected scores to include in context */
+  scores?: CommentaryInScores;
+  /** Optional confidence level of score detection */
+  confidence?: CommentaryInConfidence;
+}
+
+/**
+ * Detected scores if available
+ */
+export type CommentaryOutScores = number[] | null;
+
+/**
+ * Score detection confidence
+ */
+export type CommentaryOutConfidence = number | null;
+
+/**
+ * Output model for generated commentary
+ */
+export interface CommentaryOut {
+  /** Unique identifier for this commentary */
+  id: string;
+  /** Session identifier */
+  session_id: string;
+  /** Unix timestamp when commentary was generated */
+  timestamp: number;
+  /** Video frame timestamp in seconds */
+  frame_timestamp: number;
+  /** The AI-generated commentary text */
+  commentary: string;
+  /** Model used for generation */
+  model_used: string;
+  /** Detected scores if available */
+  scores?: CommentaryOutScores;
+  /** Score detection confidence */
+  confidence?: CommentaryOutConfidence;
+  /** ISO formatted creation timestamp */
+  created_at: string;
+}
+
 export type ComplexValueDisplay = string | null;
 
 export type ComplexValuePrimary = boolean | null;
@@ -197,6 +271,10 @@ export interface WebRTCStatusOut {
   /** Current connection status */
   status: string;
 }
+
+export type GetCommentaryHistoryParams = {
+  limit?: number;
+};
 
 /**
  * @summary Version
@@ -1293,6 +1371,420 @@ export const useDetectScore = <
 
   return useMutation(mutationOptions, queryClient);
 };
+
+/**
+ * Generate AI commentary for a video frame
+
+This endpoint analyzes a video frame and generates engaging sports-style
+commentary. The commentary is saved to a Delta table in Unity Catalog.
+ * @summary Generate Commentary
+ */
+export const generateCommentary = (
+  commentaryIn: CommentaryIn,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<CommentaryOut>> => {
+  return axios.default.post(`/api/generate-commentary`, commentaryIn, options);
+};
+
+export const getGenerateCommentaryMutationOptions = <
+  TError = AxiosError<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateCommentary>>,
+    TError,
+    { data: CommentaryIn },
+    TContext
+  >;
+  axios?: AxiosRequestConfig;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateCommentary>>,
+  TError,
+  { data: CommentaryIn },
+  TContext
+> => {
+  const mutationKey = ["generateCommentary"];
+  const { mutation: mutationOptions, axios: axiosOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, axios: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateCommentary>>,
+    { data: CommentaryIn }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateCommentary(data, axiosOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateCommentaryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateCommentary>>
+>;
+export type GenerateCommentaryMutationBody = CommentaryIn;
+export type GenerateCommentaryMutationError = AxiosError<HTTPValidationError>;
+
+/**
+ * @summary Generate Commentary
+ */
+export const useGenerateCommentary = <
+  TError = AxiosError<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof generateCommentary>>,
+      TError,
+      { data: CommentaryIn },
+      TContext
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof generateCommentary>>,
+  TError,
+  { data: CommentaryIn },
+  TContext
+> => {
+  const mutationOptions = getGenerateCommentaryMutationOptions(options);
+
+  return useMutation(mutationOptions, queryClient);
+};
+
+/**
+ * Get commentary history for a session
+
+Retrieves all commentary records for a given session from the Delta table.
+ * @summary Get Commentary History
+ */
+export const getCommentaryHistory = (
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<CommentaryHistoryOut>> => {
+  return axios.default.get(`/api/commentary/${sessionId}`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+export const getGetCommentaryHistoryQueryKey = (
+  sessionId?: string,
+  params?: GetCommentaryHistoryParams,
+) => {
+  return [`/api/commentary/${sessionId}`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCommentaryHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetCommentaryHistoryQueryKey(sessionId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommentaryHistory>>
+  > = ({ signal }) =>
+    getCommentaryHistory(sessionId, params, { signal, ...axiosOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!sessionId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommentaryHistory>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCommentaryHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommentaryHistory>>
+>;
+export type GetCommentaryHistoryQueryError = AxiosError<HTTPValidationError>;
+
+export function useGetCommentaryHistory<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params: undefined | GetCommentaryHistoryParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommentaryHistory>>,
+          TError,
+          Awaited<ReturnType<typeof getCommentaryHistory>>
+        >,
+        "initialData"
+      >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCommentaryHistory<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommentaryHistory>>,
+          TError,
+          Awaited<ReturnType<typeof getCommentaryHistory>>
+        >,
+        "initialData"
+      >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCommentaryHistory<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Commentary History
+ */
+
+export function useGetCommentaryHistory<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetCommentaryHistoryQueryOptions(
+    sessionId,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
+
+export const getGetCommentaryHistorySuspenseQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+) => {
+  const { query: queryOptions, axios: axiosOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetCommentaryHistoryQueryKey(sessionId, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCommentaryHistory>>
+  > = ({ signal }) =>
+    getCommentaryHistory(sessionId, params, { signal, ...axiosOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseSuspenseQueryOptions<
+    Awaited<ReturnType<typeof getCommentaryHistory>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCommentaryHistorySuspenseQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommentaryHistory>>
+>;
+export type GetCommentaryHistorySuspenseQueryError =
+  AxiosError<HTTPValidationError>;
+
+export function useGetCommentaryHistorySuspense<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params: undefined | GetCommentaryHistoryParams,
+  options: {
+    query: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCommentaryHistorySuspense<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCommentaryHistorySuspense<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Commentary History
+ */
+
+export function useGetCommentaryHistorySuspense<
+  TData = Awaited<ReturnType<typeof getCommentaryHistory>>,
+  TError = AxiosError<HTTPValidationError>,
+>(
+  sessionId: string,
+  params?: GetCommentaryHistoryParams,
+  options?: {
+    query?: Partial<
+      UseSuspenseQueryOptions<
+        Awaited<ReturnType<typeof getCommentaryHistory>>,
+        TError,
+        TData
+      >
+    >;
+    axios?: AxiosRequestConfig;
+  },
+  queryClient?: QueryClient,
+): UseSuspenseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetCommentaryHistorySuspenseQueryOptions(
+    sessionId,
+    params,
+    options,
+  );
+
+  const query = useSuspenseQuery(
+    queryOptions,
+    queryClient,
+  ) as UseSuspenseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  query.queryKey = queryOptions.queryKey;
+
+  return query;
+}
 
 /**
  * Store AWS credentials for WebRTC connection

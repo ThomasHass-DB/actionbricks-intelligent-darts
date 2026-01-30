@@ -10,6 +10,7 @@ import { Video, Sparkles, Camera, Wifi, Film } from "lucide-react";
 import { ScoreDetector } from "./ScoreDetector";
 import { AWSCredentialsDialog } from "./AWSCredentialsDialog";
 import { WebRTCPlayer } from "./WebRTCPlayer";
+import { Commentary } from "./Commentary";
 
 type VideoSource = "local" | "webrtc";
 
@@ -26,6 +27,9 @@ function VideoStreamContent() {
     region: string;
   } | null>(null);
   const [isWebRTCConnected, setIsWebRTCConnected] = useState(false);
+  // Store scores from detection to pass to commentary (for future enhancement)
+  const [currentScores] = useState<number[] | undefined>();
+  const [currentConfidence] = useState<number | undefined>();
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const webrtcCanvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -171,6 +175,20 @@ function VideoStreamContent() {
           </div>
         )}
       </div>
+
+      {/* Commentary Section - Full width below the main content */}
+      {detectionMethod === "generative-ai" && videoSource === "local" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-3">
+            <Commentary 
+              videoRef={localVideoRef} 
+              selectedModel={selectedModel}
+              scores={currentScores}
+              confidence={currentConfidence}
+            />
+          </div>
+        </div>
+      )}
 
       {/* AWS Credentials Dialog */}
       <AWSCredentialsDialog
