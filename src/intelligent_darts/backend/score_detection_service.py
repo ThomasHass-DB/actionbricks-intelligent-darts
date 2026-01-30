@@ -41,6 +41,14 @@ OUTPUT FORMAT (numbers only, separated by commas):
 ONLY return the comma-separated numbers. Nothing else.
 """
 
+    # Simpler Gemini prompt (long prompts cause empty responses at low temperature)
+    GEMINI_PROMPT = """Score each dart by where the METAL TIP enters the board.
+IMPORTANT: Ignore the colored flights (fins). Look where the tip is stuck.
+
+Segments clockwise from 12 o'clock: 20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5
+
+Return ONLY comma-separated numbers:"""
+
     def __init__(self, workspace_client: WorkspaceClient):
         """Initialize the service with a Databricks workspace client"""
         self.ws = workspace_client
@@ -60,6 +68,90 @@ ONLY return the comma-separated numbers. Nothing else.
             "type": "text",
             "text": text
         }
+    
+    def _is_gemini_model(self, model_endpoint: str) -> bool:
+        """Check if the model endpoint is a Gemini model"""
+        return "gemini" in model_endpoint.lower()
+    
+    def _query_gemini_model(
+        self,
+        model_endpoint: str,
+        image_base64: str,
+        image_size_kb: float
+    ) -> str:
+        """
+        Query a Gemini model with image content using the Databricks SDK.
+        
+        Key differences from standard models:
+        1. Uses a shorter prompt to avoid token limit issues
+        2. Handles content as both string and list formats
+        
+        Args:
+            model_endpoint: The Gemini model endpoint name
+            image_base64: Base64 encoded image data
+            image_size_kb: Image size for logging
+            
+        Returns:
+            The model's response text
+        """
+        logger.info(f"Using Gemini-specific format for: {model_endpoint}")
+        
+        # Use shorter prompt for Gemini to avoid token limit issues
+        # (The full system prompt causes finish_reason: "length" with no output)
+        user_content = [
+            {"type": "text", "text": self.GEMINI_PROMPT},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{image_base64}"
+                }
+            }
+        ]
+        
+        messages = [
+            ChatMessage(
+                role=ChatMessageRole.USER,
+                content=user_content
+            )
+        ]
+        
+        logger.info("=" * 80)
+        logger.info("GEMINI PROMPT (shorter):")
+        logger.info(self.GEMINI_PROMPT)
+        logger.info(f"- Image: [base64 image data, ~{image_size_kb:.2f} KB]")
+        logger.info("=" * 80)
+        
+        # Query using the Databricks SDK
+        # Note: Temperature 0.1 with long prompts causes empty responses, so use 0.5
+        response = self.ws.serving_endpoints.query(
+            name=model_endpoint,
+            messages=messages,
+            temperature=0.5,
+            max_tokens=256
+        )
+        
+        logger.info(f"Gemini SDK response: {response}")
+        
+        # Extract the response - handle both string and list content formats
+        if hasattr(response, 'choices') and response.choices:
+            choice = response.choices[0]
+            if hasattr(choice, 'message') and choice.message:
+                content = choice.message.content
+                
+                # Gemini may return content as a list: [{type: "text", text: "..."}]
+                if isinstance(content, list):
+                    for part in content:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            text = part.get("text", "").strip()
+                            if text:
+                                logger.info(f"Gemini succeeded (list format)! Response: {text}")
+                                return text
+                # Standard string format
+                elif isinstance(content, str) and content.strip():
+                    logger.info(f"Gemini succeeded (string format)! Response: {content}")
+                    return content
+        
+        raise ValueError(f"Gemini returned no content. Response: {response}")
     
     def detect_score(
         self,
@@ -107,88 +199,96 @@ ONLY return the comma-separated numbers. Nothing else.
                 except Exception as e:
                     logger.warning(f"Failed to save debug image: {e}")
             
-            # Use the "after" image as the current frame to analyze
-            # (Frontend sends the same image for both, so we just use one)
-            user_message_content = [
-                self._create_text_content(
-                    "Analyze this dartboard image and return the score for each dart visible on the board:"
-                ),
-                self._create_image_content(after_image_base64, after_timestamp, "Current Frame")
-            ]
-            
-            # Create messages for the API
-            messages = [
-                ChatMessage(
-                    role=ChatMessageRole.SYSTEM,
-                    content=self.SYSTEM_PROMPT
-                ),
-                ChatMessage(
-                    role=ChatMessageRole.USER,
-                    content=user_message_content
+            # Use the appropriate query method based on model type
+            if self._is_gemini_model(model_endpoint):
+                # Use Gemini-specific query method
+                raw_response = self._query_gemini_model(
+                    model_endpoint=model_endpoint,
+                    image_base64=after_image_base64,
+                    image_size_kb=image_size_kb
                 )
-            ]
-            
-            # Log the prompt being sent (without the full image data)
-            logger.info("=" * 80)
-            logger.info("SYSTEM PROMPT:")
-            logger.info(self.SYSTEM_PROMPT)
-            logger.info("=" * 80)
-            logger.info("USER MESSAGE:")
-            logger.info("- Text: 'Analyze this dartboard image and return the score for each dart visible on the board:'")
-            logger.info(f"- Image: [base64 image data, ~{image_size_kb:.2f} KB]")
-            logger.info("=" * 80)
-            
-            # Query the model serving endpoint
-            response = self.ws.serving_endpoints.query(
-                name=model_endpoint,
-                messages=messages,
-                temperature=0.3,  # Lower temperature for more consistent scoring
-                max_tokens=100  # Allow more tokens for multiple dart responses
-            )
-            
-            # Log the full response structure for debugging
-            logger.info(f"Full API response type: {type(response)}")
-            logger.info(f"Full API response: {response}")
-            
-            # Check for usage/token info
-            if hasattr(response, 'usage'):
-                logger.info(f"Token usage - Prompt: {response.usage.prompt_tokens}, Completion: {response.usage.completion_tokens}, Total: {response.usage.total_tokens}")
-            
-            # Extract the response text
-            raw_response = ""
-            if hasattr(response, 'choices') and response.choices:
-                logger.info(f"Response has {len(response.choices)} choices")
-                choice = response.choices[0]
-                
-                # Check finish reason for issues
-                if hasattr(choice, 'finish_reason') and choice.finish_reason:
-                    logger.info(f"Finish reason: {choice.finish_reason}")
-                    if choice.finish_reason in ['content_filter', 'safety']:
-                        logger.error(f"Model response blocked by {choice.finish_reason}")
-                        raise ValueError(f"Model response blocked by {choice.finish_reason}. The image may have been flagged by safety filters.")
-                
-                if hasattr(choice, 'message'):
-                    logger.info(f"Choice 0 has message: {choice.message}")
-                    raw_response = choice.message.content or ""
-                    
-                    # Check if content is empty but there's a refusal
-                    if not raw_response and hasattr(choice.message, 'refusal') and choice.message.refusal:
-                        logger.error(f"Model refused to respond: {choice.message.refusal}")
-                        raise ValueError(f"Model refused: {choice.message.refusal}")
-                    
-                elif hasattr(choice, 'text'):
-                    logger.info(f"Choice 0 has text: {choice.text}")
-                    raw_response = choice.text or ""
-                else:
-                    logger.error(f"Choice 0 structure: {dir(choice)}")
             else:
-                logger.error(f"Response structure: {dir(response)}")
-                logger.error(f"Response has no choices or choices is empty")
-            
-            # Check if response is empty
-            if not raw_response or raw_response.strip() == "":
-                logger.error(f"Model returned empty response. Model: {model_endpoint}, Completion tokens: {response.usage.completion_tokens if hasattr(response, 'usage') else 'unknown'}")
-                raise ValueError(f"Model {model_endpoint} returned empty response. This may indicate a compatibility issue or safety filter.")
+                # Use standard query for Claude/GPT/Llama models
+                user_message_content = [
+                    self._create_text_content(
+                        "Analyze this dartboard image and return the score for each dart visible on the board:"
+                    ),
+                    self._create_image_content(after_image_base64, after_timestamp, "Current Frame")
+                ]
+                
+                # Create messages for the API
+                messages = [
+                    ChatMessage(
+                        role=ChatMessageRole.SYSTEM,
+                        content=self.SYSTEM_PROMPT
+                    ),
+                    ChatMessage(
+                        role=ChatMessageRole.USER,
+                        content=user_message_content
+                    )
+                ]
+                
+                # Log the prompt being sent (without the full image data)
+                logger.info("=" * 80)
+                logger.info("SYSTEM PROMPT:")
+                logger.info(self.SYSTEM_PROMPT)
+                logger.info("=" * 80)
+                logger.info("USER MESSAGE:")
+                logger.info("- Text: 'Analyze this dartboard image and return the score for each dart visible on the board:'")
+                logger.info(f"- Image: [base64 image data, ~{image_size_kb:.2f} KB]")
+                logger.info("=" * 80)
+                
+                # Query the model serving endpoint
+                response = self.ws.serving_endpoints.query(
+                    name=model_endpoint,
+                    messages=messages,
+                    temperature=0.3,  # Lower temperature for more consistent scoring
+                    max_tokens=100  # Allow more tokens for multiple dart responses
+                )
+                
+                # Log the full response structure for debugging
+                logger.info(f"Full API response type: {type(response)}")
+                logger.info(f"Full API response: {response}")
+                
+                # Check for usage/token info
+                if hasattr(response, 'usage'):
+                    logger.info(f"Token usage - Prompt: {response.usage.prompt_tokens}, Completion: {response.usage.completion_tokens}, Total: {response.usage.total_tokens}")
+                
+                # Extract the response text
+                raw_response = ""
+                if hasattr(response, 'choices') and response.choices:
+                    logger.info(f"Response has {len(response.choices)} choices")
+                    choice = response.choices[0]
+                    
+                    # Check finish reason for issues
+                    if hasattr(choice, 'finish_reason') and choice.finish_reason:
+                        logger.info(f"Finish reason: {choice.finish_reason}")
+                        if choice.finish_reason in ['content_filter', 'safety']:
+                            logger.error(f"Model response blocked by {choice.finish_reason}")
+                            raise ValueError(f"Model response blocked by {choice.finish_reason}. The image may have been flagged by safety filters.")
+                    
+                    if hasattr(choice, 'message'):
+                        logger.info(f"Choice 0 has message: {choice.message}")
+                        raw_response = choice.message.content or ""
+                        
+                        # Check if content is empty but there's a refusal
+                        if not raw_response and hasattr(choice.message, 'refusal') and choice.message.refusal:
+                            logger.error(f"Model refused to respond: {choice.message.refusal}")
+                            raise ValueError(f"Model refused: {choice.message.refusal}")
+                        
+                    elif hasattr(choice, 'text'):
+                        logger.info(f"Choice 0 has text: {choice.text}")
+                        raw_response = choice.text or ""
+                    else:
+                        logger.error(f"Choice 0 structure: {dir(choice)}")
+                else:
+                    logger.error(f"Response structure: {dir(response)}")
+                    logger.error(f"Response has no choices or choices is empty")
+                
+                # Check if response is empty
+                if not raw_response or raw_response.strip() == "":
+                    logger.error(f"Model returned empty response. Model: {model_endpoint}, Completion tokens: {response.usage.completion_tokens if hasattr(response, 'usage') else 'unknown'}")
+                    raise ValueError(f"Model {model_endpoint} returned empty response. This may indicate a compatibility issue or safety filter.")
             
             logger.info(f"Extracted raw response from model: {raw_response}")
             
