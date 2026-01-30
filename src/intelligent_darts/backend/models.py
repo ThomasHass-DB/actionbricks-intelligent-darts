@@ -95,3 +95,50 @@ class WebRTCStatusOut(BaseModel):
     status: str = Field(
         description="Current connection status"
     )
+
+
+class CommentaryIn(BaseModel):
+    """Input model for generating commentary"""
+    image_base64: str = Field(
+        description="Base64 encoded image of the current frame"
+    )
+    frame_timestamp: float = Field(
+        description="Timestamp of the frame in seconds"
+    )
+    session_id: str = Field(
+        description="Unique session identifier for the video analysis"
+    )
+    model: str = Field(
+        default="databricks-claude-sonnet-4-5",
+        description="The AI model endpoint to use for commentary"
+    )
+    scores: List[int] | None = Field(
+        default=None,
+        description="Optional detected scores to include in context"
+    )
+    confidence: float | None = Field(
+        default=None,
+        description="Optional confidence level of score detection"
+    )
+
+
+class CommentaryOut(BaseModel):
+    """Output model for generated commentary"""
+    id: str = Field(description="Unique identifier for this commentary")
+    session_id: str = Field(description="Session identifier")
+    timestamp: float = Field(description="Unix timestamp when commentary was generated")
+    frame_timestamp: float = Field(description="Video frame timestamp in seconds")
+    commentary: str = Field(description="The AI-generated commentary text")
+    model_used: str = Field(description="Model used for generation")
+    scores: List[int] | None = Field(default=None, description="Detected scores if available")
+    confidence: float | None = Field(default=None, description="Score detection confidence")
+    created_at: str = Field(description="ISO formatted creation timestamp")
+
+
+class CommentaryHistoryOut(BaseModel):
+    """Output model for commentary history"""
+    commentaries: List[CommentaryOut] = Field(
+        description="List of commentary records"
+    )
+    session_id: str = Field(description="Session identifier")
+    total_count: int = Field(description="Total number of commentaries")

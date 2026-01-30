@@ -2,13 +2,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from .models import (
     VersionOut, VideoStreamOut, GameStatusOut, ScoreDetectionIn, ScoreDetectionOut,
-    AWSCredentialsIn, WebRTCConfigOut, WebRTCStatusOut
+    AWSCredentialsIn, WebRTCConfigOut, WebRTCStatusOut,
+    CommentaryIn, CommentaryOut, CommentaryHistoryOut
 )
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.iam import User as UserOut
 from .dependencies import get_obo_ws, get_app_ws
 from .config import conf
 from .score_detection_service import ScoreDetectionService
+from .commentary_service import CommentaryService
 from .webrtc_service import connection_manager
 from .logger import logger
 import json
@@ -95,6 +97,82 @@ async def detect_score(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to detect score: {str(e)}"
+        )
+
+
+@api.post("/generate-commentary", response_model=CommentaryOut, operation_id="generateCommentary")
+async def generate_commentary(
+    request: CommentaryIn,
+    app_ws: Annotated[WorkspaceClient, Depends(get_app_ws)]
+):
+    """
+    Generate AI commentary for a video frame
+    
+    This endpoint analyzes a video frame and generates engaging sports-style
+    commentary. The commentary is saved to a Delta table in Unity Catalog.
+    """
+    try:
+        logger.info(f"Generating commentary for frame at {request.frame_timestamp:.2f}s")
+        
+        # Create the commentary service
+        service = CommentaryService(app_ws)
+        
+        # Generate commentary
+        result = service.generate_commentary(
+            image_base64=request.image_base64,
+            frame_timestamp=request.frame_timestamp,
+            session_id=request.session_id,
+            model_endpoint=request.model,
+            scores=request.scores,
+            confidence=request.confidence
+        )
+        
+        logger.info(f"Generated commentary: {result['commentary'][:50]}...")
+        
+        return CommentaryOut(**result)
+        
+    except Exception as e:
+        logger.error(f"Error in generate_commentary endpoint: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate commentary: {str(e)}"
+        )
+
+
+@api.get("/commentary/{session_id}", response_model=CommentaryHistoryOut, operation_id="getCommentaryHistory")
+async def get_commentary_history(
+    session_id: str,
+    app_ws: Annotated[WorkspaceClient, Depends(get_app_ws)],
+    limit: int = 50
+):
+    """
+    Get commentary history for a session
+    
+    Retrieves all commentary records for a given session from the Delta table.
+    """
+    try:
+        logger.info(f"Retrieving commentary for session {session_id}")
+        
+        # Create the commentary service
+        service = CommentaryService(app_ws)
+        
+        # Get commentary history
+        commentaries = service.get_session_commentary(session_id, limit)
+        
+        # Convert to output models
+        commentary_list = [CommentaryOut(**c) for c in commentaries]
+        
+        return CommentaryHistoryOut(
+            commentaries=commentary_list,
+            session_id=session_id,
+            total_count=len(commentary_list)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in get_commentary_history endpoint: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve commentary: {str(e)}"
         )
 
 
